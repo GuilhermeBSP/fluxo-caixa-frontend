@@ -604,6 +604,15 @@ input[type="color"].form-control-color { padding: .3rem; height: 38px; }
 .modal-backdrop { z-index: 1040 !important; }
 .modal          { z-index: 1050 !important; }
 
+.modal-dialog {
+  margin: 1rem auto;
+}
+
+.modal-body {
+  max-height: calc(85vh - 130px);
+  overflow-y: auto;
+}
+
 .modal-content {
   background: rgba(12,12,24,.95);
   backdrop-filter: blur(24px);

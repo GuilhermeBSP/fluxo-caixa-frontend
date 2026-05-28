@@ -951,6 +951,12 @@ canvas { max-height: 280px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.14); }
 
 /* ════════════════════════════════════════
+   TOAST & CONFIRM ANIMATIONS
+════════════════════════════════════════ */
+@keyframes _toastIn  { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+@keyframes _toastOut { from { opacity:1; transform:translateX(0); }    to { opacity:0; transform:translateX(16px); } }
+
+/* ════════════════════════════════════════
    MOBILE
 ════════════════════════════════════════ */
 @media (max-width: 768px) {

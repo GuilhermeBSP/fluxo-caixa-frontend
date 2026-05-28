@@ -79,6 +79,58 @@ window.animateCards = function(selector, baseDelay) {
   });
 };
 
+// ── Toast notifications ──
+(function() {
+  function inject() {
+    if (document.getElementById('_toastBox')) return;
+    const b = document.createElement('div');
+    b.id = '_toastBox';
+    b.style.cssText = 'position:fixed;top:1.1rem;right:1.1rem;z-index:9999;display:flex;flex-direction:column;gap:.45rem;pointer-events:none';
+    document.body.appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inject);
+  else inject();
+})();
+
+window.showToast = function(msg, type) {
+  type = type || 'success';
+  const cfg = {
+    success: { color:'#10b981', icon:'bi-check-circle-fill' },
+    error:   { color:'#f43f5e', icon:'bi-x-circle-fill' },
+    info:    { color:'#a78bfa', icon:'bi-info-circle-fill' },
+    warning: { color:'#fbbf24', icon:'bi-exclamation-triangle-fill' },
+  }[type] || { color:'#a78bfa', icon:'bi-info-circle-fill' };
+  const box = document.getElementById('_toastBox');
+  if (!box) return;
+  const t = document.createElement('div');
+  t.style.cssText = 'background:rgba(12,12,24,.97);border:1px solid rgba(255,255,255,.1);border-left:3px solid ' + cfg.color + ';border-radius:10px;padding:.6rem .95rem;font-size:.82rem;color:#f1f5f9;display:flex;align-items:center;gap:.55rem;min-width:240px;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:auto;animation:_toastIn .22s ease';
+  t.innerHTML = '<i class="bi ' + cfg.icon + '" style="color:' + cfg.color + ';font-size:.95rem;flex-shrink:0"></i><span>' + msg + '</span>';
+  box.appendChild(t);
+  setTimeout(function() {
+    t.style.animation = '_toastOut .2s ease forwards';
+    setTimeout(function() { t.remove(); }, 200);
+  }, 3200);
+};
+
+// ── Confirm dialog ──
+window.showConfirm = function(msg, btnLabel) {
+  return new Promise(function(resolve) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:_toastIn .15s ease';
+    ov.innerHTML = '<div style="background:rgba(12,12,24,.98);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:1.5rem;max-width:340px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.7)">'
+      + '<div style="font-size:.9rem;font-weight:600;color:#f1f5f9;margin-bottom:.35rem">Confirmar ação</div>'
+      + '<div style="font-size:.84rem;color:#94a3b8;margin-bottom:1.2rem;line-height:1.5">' + msg + '</div>'
+      + '<div style="display:flex;gap:.55rem;justify-content:flex-end">'
+      + '<button id="_cNo"  style="padding:.42rem .9rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#94a3b8;font-size:.82rem;cursor:pointer;font-family:inherit">Cancelar</button>'
+      + '<button id="_cYes" style="padding:.42rem .9rem;border-radius:8px;border:none;background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit">' + (btnLabel || 'Confirmar') + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#_cYes').onclick = function() { ov.remove(); resolve(true); };
+    ov.querySelector('#_cNo').onclick  = function() { ov.remove(); resolve(false); };
+    ov.addEventListener('click', function(e) { if (e.target === ov) { ov.remove(); resolve(false); } });
+  });
+};
+
 // ── Ripple effect ──
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('.btn');

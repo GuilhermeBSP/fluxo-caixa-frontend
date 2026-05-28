@@ -136,7 +136,11 @@ async function loadAccounts() {
   const accounts = await fetch(api("/api/accounts/")).then(r=>r.json());
   const el = document.getElementById("accountsList");
   if(!accounts.length) {
-    el.innerHTML = `<div class="col-12"><p class="text-muted" style="font-size:.875rem">Nenhuma conta cadastrada.</p></div>`;
+    el.innerHTML = `<div class="col-12 text-center py-5">
+      <i class="bi bi-bank2" style="font-size:2.5rem;color:var(--text-muted);opacity:.35;display:block;margin-bottom:.7rem"></i>
+      <div style="font-size:.9rem;color:var(--text-muted)">Nenhuma conta cadastrada</div>
+      <div style="font-size:.78rem;color:var(--text-muted);opacity:.7;margin-top:.25rem">Clique em "Nova Conta" para começar</div>
+    </div>`;
     return;
   }
   el.innerHTML = accounts.map(a => {
@@ -178,16 +182,18 @@ async function saveAccount() {
   if(res.ok) {
     bootstrap.Modal.getInstance(document.getElementById("modalAccount")).hide();
     form.reset();
+    showToast("Conta criada com sucesso!", "success");
     loadAccounts();
   } else {
     const err = await res.json();
-    alert("Erro: " + JSON.stringify(err.detail));
+    showToast("Erro: " + (err.detail || JSON.stringify(err)), "error");
   }
 }
 
 async function deleteAccount(id) {
-  if(!confirm("Excluir esta conta e todas as suas transações?")) return;
+  if(!await showConfirm("Excluir esta conta e TODAS as suas transações? Esta ação não pode ser desfeita.", "Excluir")) return;
   await fetch(api(`/api/accounts/${id}`), {method:"DELETE"});
+  showToast("Conta excluída", "success");
   loadAccounts();
 }
 

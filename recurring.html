@@ -187,7 +187,13 @@ async function loadRecurring() {
         </div>
       </td>
     </tr>`).join("")
-    : `<tr><td colspan="8" class="text-center text-muted py-4" style="font-size:.875rem">Nenhuma recorrência cadastrada</td></tr>`;
+    : `<tr><td colspan="8">
+        <div class="text-center py-5">
+          <i class="bi bi-arrow-repeat" style="font-size:2.4rem;color:var(--text-muted);opacity:.35;display:block;margin-bottom:.7rem"></i>
+          <div style="font-size:.875rem;color:var(--text-muted)">Nenhuma recorrência cadastrada</div>
+          <div style="font-size:.76rem;color:var(--text-muted);opacity:.7;margin-top:.2rem">Adicione lançamentos fixos mensais para automatizar seu controle</div>
+        </div>
+      </td></tr>`;
   staggerRows(tbody);
 }
 
@@ -203,10 +209,11 @@ async function saveRec() {
   if(res.ok) {
     bootstrap.Modal.getInstance(document.getElementById("modalRec")).hide();
     document.getElementById("formRec").reset();
+    showToast("Recorrência criada!", "success");
     loadRecurring();
   } else {
     const err = await res.json();
-    alert("Erro: " + JSON.stringify(err.detail));
+    showToast("Erro: " + (err.detail || JSON.stringify(err)), "error");
   }
 }
 
@@ -216,8 +223,9 @@ async function toggleRec(id) {
 }
 
 async function deleteRec(id) {
-  if(!confirm("Excluir esta recorrência?")) return;
+  if(!await showConfirm("Excluir esta recorrência?", "Excluir")) return;
   await fetch(api(`/api/recurring/${id}`), {method:"DELETE"});
+  showToast("Recorrência excluída", "success");
   loadRecurring();
 }
 
@@ -225,7 +233,7 @@ async function applyRecurring() {
   const today = new Date();
   const res  = await fetch(api(`/api/recurring/apply?year=${today.getFullYear()}&month=${today.getMonth()+1}`), {method:"POST"});
   const data = await res.json();
-  alert(`${data.created} transação(ões) gerada(s) com sucesso!`);
+  showToast(data.created + " transação(ões) gerada(s) com sucesso!", data.created > 0 ? "success" : "info");
   loadRecurring();
 }
 

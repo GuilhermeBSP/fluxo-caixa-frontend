@@ -46,16 +46,22 @@
     <h5 class="mb-0 fw-bold" style="letter-spacing:-.02em">Transações</h5>
     <div class="text-muted" style="font-size:.78rem;margin-top:2px">Histórico completo de entradas e saídas</div>
   </div>
-  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTx">
+  <button class="btn btn-primary" onclick="openNewTx()">
     <i class="bi bi-plus-lg me-1"></i>Nova Transação
   </button>
 </div>
 
 <div class="card p-3 mb-3">
+  <div class="row g-2 mb-2">
+    <div class="col-12">
+      <input type="text" id="fSearch" class="form-control form-control-sm"
+        placeholder="Buscar por descrição..." oninput="applyFilters()">
+    </div>
+  </div>
   <div class="row g-2 align-items-end">
     <div class="col-md-2">
       <label class="form-label">Tipo</label>
-      <select id="fType" class="form-select form-select-sm">
+      <select id="fType" class="form-select form-select-sm" onchange="applyFilters()">
         <option value="">Todos</option>
         <option value="income">Receita</option>
         <option value="expense">Despesa</option>
@@ -63,11 +69,15 @@
     </div>
     <div class="col-md-2">
       <label class="form-label">Conta</label>
-      <select id="fAccount" class="form-select form-select-sm"><option value="">Todas</option></select>
+      <select id="fAccount" class="form-select form-select-sm" onchange="applyFilters()">
+        <option value="">Todas</option>
+      </select>
     </div>
     <div class="col-md-2">
       <label class="form-label">Categoria</label>
-      <select id="fCategory" class="form-select form-select-sm"><option value="">Todas</option></select>
+      <select id="fCategory" class="form-select form-select-sm" onchange="applyFilters()">
+        <option value="">Todas</option>
+      </select>
     </div>
     <div class="col-md-2">
       <label class="form-label">De</label>
@@ -79,13 +89,21 @@
     </div>
     <div class="col-md-2">
       <button class="btn btn-outline-secondary btn-sm w-100" onclick="loadTransactions()">
-        <i class="bi bi-funnel me-1"></i>Filtrar
+        <i class="bi bi-funnel me-1"></i>Filtrar por data
       </button>
     </div>
   </div>
 </div>
 
 <div class="card p-4">
+  <div id="txSummary" style="display:none;border-bottom:1px solid var(--border);margin-bottom:1rem;padding-bottom:.85rem">
+    <div class="d-flex flex-wrap gap-3" style="font-size:.82rem">
+      <span id="txCount" class="text-muted"></span>
+      <span class="ms-auto">Receitas: <strong class="amount-income" id="txTotalIncome"></strong></span>
+      <span>Despesas: <strong class="amount-expense" id="txTotalExpense"></strong></span>
+      <span>Saldo: <strong id="txBalance"></strong></span>
+    </div>
+  </div>
   <div class="table-responsive">
     <table class="table table-hover align-middle">
       <thead><tr>
@@ -94,17 +112,31 @@
       <tbody id="txBody"></tbody>
     </table>
   </div>
+  <div id="txPagination" style="display:none;border-top:1px solid var(--border);padding-top:.85rem;margin-top:.25rem">
+    <div class="d-flex align-items-center justify-content-between" style="font-size:.82rem">
+      <span id="pageInfo" class="text-muted"></span>
+      <div class="d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary" id="btnPrev" onclick="changePage(-1)">
+          <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="btnNext" onclick="changePage(1)">
+          Próximo <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="modalTx" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Nova Transação</h5>
+        <h5 class="modal-title" id="modalTxTitle">Nova Transação</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <form id="formTx">
+          <input type="hidden" id="editingTxId">
           <div class="mb-3">
             <label class="form-label">Tipo *</label>
             <select name="type" class="form-select" required>
@@ -175,6 +207,10 @@
 <script src="/app.js"></script>
 <script>
 const fmt = v => "R$ " + v.toLocaleString("pt-BR", {minimumFractionDigits:2});
+let allTxs      = [];
+let filteredTxs = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
 
 async function loadOptions() {
   const [accounts, categories] = await Promise.all([
@@ -191,26 +227,77 @@ async function loadOptions() {
     if(!el) return;
     categories.forEach(c => { if(!el.querySelector(`option[value='${c.id}']`)) el.appendChild(new Option(c.name, c.id)); });
   });
-  const dateEl = document.querySelector("#formTx [name='date']");
-  if(dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split("T")[0];
+}
+
+function showSkeleton() {
+  document.getElementById("txSummary").style.display = "none";
+  document.getElementById("txPagination").style.display = "none";
+  document.getElementById("txBody").innerHTML = Array(6).fill(0).map((_, i) => `
+    <tr style="opacity:${1 - i*0.13}">
+      <td><div class="skeleton" style="height:12px;border-radius:4px;width:68px"></div></td>
+      <td><div class="skeleton" style="height:12px;border-radius:4px"></div></td>
+      <td><div class="skeleton" style="height:12px;border-radius:4px;width:82px"></div></td>
+      <td><div class="skeleton" style="height:12px;border-radius:4px;width:88px"></div></td>
+      <td><div class="skeleton" style="height:18px;border-radius:20px;width:58px"></div></td>
+      <td class="text-end"><div class="skeleton" style="height:12px;border-radius:4px;width:76px;margin-left:auto"></div></td>
+      <td><div class="skeleton" style="height:28px;width:60px;border-radius:6px"></div></td>
+    </tr>`).join("");
 }
 
 async function loadTransactions() {
+  showSkeleton();
   const p = new URLSearchParams();
+  const start = document.getElementById("fStart").value;
+  const end   = document.getElementById("fEnd").value;
+  if(start) p.set("start_date", start);
+  if(end)   p.set("end_date", end);
+  allTxs = await fetch(api(`/api/transactions/?${p}`)).then(r=>r.json());
+  currentPage = 1;
+  applyFilters();
+}
+
+function applyFilters() {
+  const search   = document.getElementById("fSearch").value.toLowerCase().trim();
   const type     = document.getElementById("fType").value;
   const account  = document.getElementById("fAccount").value;
   const category = document.getElementById("fCategory").value;
-  const start    = document.getElementById("fStart").value;
-  const end      = document.getElementById("fEnd").value;
-  if(type)     p.set("type", type);
-  if(account)  p.set("account_id", account);
-  if(category) p.set("category_id", category);
-  if(start)    p.set("start_date", start);
-  if(end)      p.set("end_date", end);
 
-  const txs = await fetch(api(`/api/transactions/?${p}`)).then(r=>r.json());
-  const tbody = document.getElementById("txBody");
-  tbody.innerHTML = txs.length ? txs.map(tx => `
+  filteredTxs = allTxs.filter(tx => {
+    if(search   && !tx.description.toLowerCase().includes(search)) return false;
+    if(type     && tx.type !== type) return false;
+    if(account  && String(tx.account_id) !== account) return false;
+    if(category && String(tx.category_id) !== category) return false;
+    return true;
+  });
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tbody     = document.getElementById("txBody");
+  const total     = filteredTxs.length;
+  const start     = (currentPage - 1) * PAGE_SIZE;
+  const page      = filteredTxs.slice(start, start + PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const income  = filteredTxs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount, 0);
+  const expense = filteredTxs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount, 0);
+  const balance = income - expense;
+
+  const summaryEl = document.getElementById("txSummary");
+  if(total > 0) {
+    document.getElementById("txCount").textContent = total + " transação(ões)";
+    document.getElementById("txTotalIncome").textContent  = fmt(income);
+    document.getElementById("txTotalExpense").textContent = fmt(expense);
+    const balEl = document.getElementById("txBalance");
+    balEl.textContent = fmt(Math.abs(balance));
+    balEl.className = balance >= 0 ? "amount-income" : "amount-expense";
+    summaryEl.style.display = "block";
+  } else {
+    summaryEl.style.display = "none";
+  }
+
+  tbody.innerHTML = page.length ? page.map(tx => `
     <tr>
       <td class="text-muted" style="font-size:.78rem;white-space:nowrap">${tx.date}</td>
       <td style="font-size:.875rem">${tx.description}</td>
@@ -229,38 +316,97 @@ async function loadTransactions() {
         ${tx.type==='income'?'+':'−'} ${fmt(tx.amount)}
       </td>
       <td>
-        <button class="btn btn-sm btn-outline-danger p-1" style="width:28px;height:28px;line-height:1" onclick="deleteTx(${tx.id})">
-          <i class="bi bi-trash" style="font-size:.75rem"></i>
-        </button>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary p-1" style="width:28px;height:28px;line-height:1" title="Editar" onclick="openEditTx(${tx.id})">
+            <i class="bi bi-pencil" style="font-size:.72rem"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger p-1" style="width:28px;height:28px;line-height:1" onclick="deleteTx(${tx.id})">
+            <i class="bi bi-trash" style="font-size:.72rem"></i>
+          </button>
+        </div>
       </td>
     </tr>`).join("")
-    : `<tr><td colspan="7" class="text-center text-muted py-4" style="font-size:.875rem">Nenhuma transação encontrada</td></tr>`;
+    : `<tr><td colspan="7">
+        <div class="text-center py-5">
+          <i class="bi bi-inbox" style="font-size:2.4rem;color:var(--text-muted);opacity:.35;display:block;margin-bottom:.7rem"></i>
+          <div style="font-size:.875rem;color:var(--text-muted)">Nenhuma transação encontrada</div>
+          <div style="font-size:.76rem;color:var(--text-muted);opacity:.7;margin-top:.2rem">Tente ajustar os filtros ou adicione uma nova transação</div>
+        </div>
+      </td></tr>`;
+
   staggerRows(tbody);
+
+  const pagEl = document.getElementById("txPagination");
+  if(total > PAGE_SIZE) {
+    pagEl.style.display = "block";
+    document.getElementById("pageInfo").textContent = "Página " + currentPage + " de " + totalPages + " (" + total + " itens)";
+    document.getElementById("btnPrev").disabled = currentPage <= 1;
+    document.getElementById("btnNext").disabled = currentPage >= totalPages;
+  } else {
+    pagEl.style.display = "none";
+  }
+}
+
+function changePage(delta) {
+  const totalPages = Math.ceil(filteredTxs.length / PAGE_SIZE);
+  currentPage = Math.max(1, Math.min(currentPage + delta, totalPages));
+  renderTable();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function openNewTx() {
+  document.getElementById("editingTxId").value = "";
+  document.getElementById("modalTxTitle").textContent = "Nova Transação";
+  document.getElementById("formTx").reset();
+  document.querySelector("#formTx [name='date']").value = new Date().toISOString().split("T")[0];
+  new bootstrap.Modal(document.getElementById("modalTx")).show();
+}
+
+function openEditTx(id) {
+  const tx = allTxs.find(t => t.id === id);
+  if(!tx) return;
+  document.getElementById("editingTxId").value = id;
+  document.getElementById("modalTxTitle").textContent = "Editar Transação";
+  const form = document.getElementById("formTx");
+  form.querySelector("[name='type']").value        = tx.type;
+  form.querySelector("[name='account_id']").value  = tx.account_id;
+  form.querySelector("[name='category_id']").value = tx.category_id || "";
+  form.querySelector("[name='description']").value = tx.description;
+  form.querySelector("[name='amount']").value      = tx.amount;
+  form.querySelector("[name='date']").value        = tx.date;
+  new bootstrap.Modal(document.getElementById("modalTx")).show();
 }
 
 async function saveTx() {
-  const form = document.getElementById("formTx");
-  const data = Object.fromEntries(new FormData(form));
+  const form   = document.getElementById("formTx");
+  const editId = document.getElementById("editingTxId").value;
+  const data   = Object.fromEntries(new FormData(form));
   if(!data.category_id) delete data.category_id;
   data.amount = parseFloat(data.amount);
-  const res = await fetch(api("/api/transactions/"), {
-    method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
-  });
+
+  const res = await fetch(
+    editId ? api(`/api/transactions/${editId}`) : api("/api/transactions/"),
+    { method: editId ? "PUT" : "POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }
+  );
   if(res.ok) {
     bootstrap.Modal.getInstance(document.getElementById("modalTx")).hide();
-    form.reset();
-    document.querySelector("#formTx [name='date']").value = new Date().toISOString().split("T")[0];
+    showToast(editId ? "Transação atualizada!" : "Transação criada com sucesso!", "success");
     loadTransactions();
   } else {
     const err = await res.json();
-    alert("Erro: " + JSON.stringify(err.detail));
+    showToast("Erro: " + (err.detail || JSON.stringify(err)), "error");
   }
 }
 
 async function deleteTx(id) {
-  if(!confirm("Remover esta transação?")) return;
-  await fetch(api(`/api/transactions/${id}`), {method:"DELETE"});
-  loadTransactions();
+  if(!await showConfirm("Esta ação não pode ser desfeita. Deseja remover a transação?", "Remover")) return;
+  const res = await fetch(api(`/api/transactions/${id}`), {method:"DELETE"});
+  if(res.ok || res.status === 204) {
+    showToast("Transação removida", "success");
+    loadTransactions();
+  } else {
+    showToast("Erro ao remover transação", "error");
+  }
 }
 
 loadOptions().then(loadTransactions);

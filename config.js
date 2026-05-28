@@ -1,1 +1,1 @@
-window.API_BASE = 'fluxo-api.bspprompt.com';
+window.API_BASE = 'https://fluxo-api.bspprompt.com';
